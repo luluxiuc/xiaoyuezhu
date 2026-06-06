@@ -15,13 +15,22 @@ data class CirclePos(
 @Serializable
 data class IdColumn(val circles: List<CirclePos>)
 
-/** One question: option circles A/B/C/D and which one is correct */
+/** One question: option circles A/B/C/D and which options are correct */
 @Serializable
 data class QuestionMaster(
     val index: Int,
     val options: List<CirclePos>,
-    val correctOption: Int  // 0=A, 1=B, 2=C, 3=D
-)
+    val correctOptions: List<Int> = emptyList(),  // 0=A, 1=B, etc. Multiple = multi-select
+    // Backward compat — prefer correctOptions
+    @Deprecated("Use correctOptions")
+    val correctOption: Int = -1
+) {
+    /** All correct option indices, handling legacy single-value field */
+    val allCorrect: List<Int>
+        get() = if (correctOptions.isNotEmpty()) correctOptions
+                else if (correctOption >= 0) listOf(correctOption)
+                else emptyList()
+}
 
 /** Master calibration — all circle positions learned from teacher's filled calibration sheet */
 @Serializable

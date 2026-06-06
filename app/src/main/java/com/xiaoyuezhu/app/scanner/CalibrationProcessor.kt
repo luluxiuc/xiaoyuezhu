@@ -103,16 +103,19 @@ object CalibrationProcessor {
                     CirclePos(bf.cx, bf.cy, bf.r, intensity = bf.meanIntensity)
                 }
 
-                // The filled option = the correct answer
-                val filledIdx = qBubbles.indexOfFirst { it.isFilled }
-                val correctOption = if (filledIdx >= 0) filledIdx else {
-                    // If none clearly filled, pick the darkest
-                    qBubbles.indices.maxByOrNull { qBubbles[it].meanIntensity } ?: 0
+                // Collect ALL filled options — multi-select if teacher filled multiple
+                val filledIndices = qBubbles.indices.filter { qBubbles[it].isFilled }
+                val correctOptions = if (filledIndices.isNotEmpty()) {
+                    filledIndices
+                } else {
+                    // If none clearly filled, pick the darkest as fallback
+                    val darkest = qBubbles.indices.maxByOrNull { qBubbles[it].meanIntensity } ?: 0
+                    listOf(darkest)
                 }
 
                 val qIndex = qrIdx * questionsPerRow + qi
                 if (qIndex < expectedQuestions) {
-                    questions.add(QuestionMaster(qIndex, options, correctOption))
+                    questions.add(QuestionMaster(qIndex, options, correctOptions))
                 }
             }
             rowIdx++
@@ -126,7 +129,7 @@ object CalibrationProcessor {
 
         // Step 6: Build correct answers
         val correctAnswers = questions.map { q ->
-            AnswerItemJson(q.index, listOf(optionLabels[q.correctOption]))
+            AnswerItemJson(q.index, q.allCorrect.map { optionLabels.getOrElse(it) { ('A' + it).toString() } })
         }
 
         // Step 7: Build MasterTemplate

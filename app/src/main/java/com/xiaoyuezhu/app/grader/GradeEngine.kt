@@ -22,13 +22,31 @@ object GradeEngine {
         val correctAnswer: List<String>,
         val studentAnswer: List<String>,
         val isCorrect: Boolean,
-        val isBlank: Boolean
+        val isPartial: Boolean,  // multi-select: some correct options selected, no wrong ones
+        val isBlank: Boolean,
+        val earnedScore: Double,
+        val maxScore: Double
     )
 
+    /**
+     * Grade a student's answers against correct answers.
+     *
+     * Multi-select logic:
+     * - Full match (all correct, no extra): full score
+     * - Partial match (some correct options, no wrong ones): half score
+     * - Wrong answer (includes any wrong option): zero
+     * - Blank (no selection): zero
+     *
+     * @param correctAnswerJson JSON array of AnswerItemJson
+     * @param studentAnswerJson JSON StudentAnswerJson
+     * @param questionScores per-question max scores; if empty, split totalScore equally
+     * @param totalScore fallback total if questionScores is empty
+     */
     fun grade(
         correctAnswerJson: String,
         studentAnswerJson: String,
-        totalScore: Double
+        totalScore: Double,
+        questionScores: List<Double> = emptyList()
     ): GradingResult? {
         return try {
             val correctAnswers: List<AnswerItemJson> = json.decodeFromString(correctAnswerJson)
@@ -40,40 +58,73 @@ object GradeEngine {
                 return null
             }
 
-            val perQuestionScore = if (totalQuestions > 0) totalScore / totalQuestions else 0.0
+            // Determine per-question scores
+            val perQuestionScores = if (questionScores.size == totalQuestions) {
+                questionScores
+            } else {
+                List(totalQuestions) { totalScore / totalQuestions }
+            }
 
+            var totalEarned = 0.0
             var correctCount = 0
             var wrongCount = 0
             var blankCount = 0
             val details = mutableListOf<QuestionResult>()
 
             for (correctItem in correctAnswers) {
-                val studentItem = studentAnswer.answers.find { it.questionIndex == correctItem.questionIndex }
+                val qi = correctItem.questionIndex
+                val studentItem = studentAnswer.answers.find { it.questionIndex == qi }
                 val studentSelected = studentItem?.selectedOptions ?: emptyList()
-                val isBlank = studentSelected.isEmpty()
-                val isCorrect = if (isBlank) false else studentSelected.sorted() == correctItem.selectedOptions.sorted()
+                val correctSet = correctItem.selectedOptions.toSet()
+                val studentSet = studentSelected.toSet()
+                val maxScore = perQuestionScores.getOrElse(qi) { totalScore / totalQuestions }
 
-                if (isCorrect) correctCount++
-                else if (isBlank) blankCount++
-                else wrongCount++
+                val isBlank = studentSelected.isEmpty()
+                val isFullCorrect = !isBlank && studentSet == correctSet
+
+                // Partial: at least one correct selected, no wrong ones, but not all correct
+                val hasWrong = studentSet.any { it !in correctSet }
+                val hasCorrect = studentSet.any { it in correctSet }
+                val isPartial = !isBlank && !isFullCorrect && !hasWrong && hasCorrect
+
+                val earnedScore = when {
+                    isFullCorrect -> maxScore
+                    isPartial -> maxScore / 2.0  // half credit for partial match
+                    else -> 0.0
+                }
+
+                totalEarned += earnedScore
+
+                when {
+                    isFullCorrect -> correctCount++
+                    isPartial -> { /* counts as partial, not fully correct or wrong */
+                        // Count as wrong for simple stats
+                        wrongCount++
+                    }
+                    isBlank -> blankCount++
+                    else -> wrongCount++
+                }
 
                 details.add(
                     QuestionResult(
-                        index = correctItem.questionIndex,
+                        index = qi,
                         correctAnswer = correctItem.selectedOptions,
                         studentAnswer = studentSelected,
-                        isCorrect = isCorrect,
-                        isBlank = isBlank
+                        isCorrect = isFullCorrect,
+                        isPartial = isPartial,
+                        isBlank = isBlank,
+                        earnedScore = earnedScore,
+                        maxScore = maxScore
                     )
                 )
             }
 
-            val score = correctCount * perQuestionScore
+            val totalPossible = perQuestionScores.sum()
 
-            Timber.i("判分完成: 得分=$score/$totalScore, 正确=$correctCount, 错误=$wrongCount, 未答=$blankCount")
+            Timber.i("判分完成: 得分=$totalEarned/$totalPossible, 正确=$correctCount, 错误=$wrongCount, 未答=$blankCount")
 
             GradingResult(
-                score = score,
+                score = totalEarned,
                 correctCount = correctCount,
                 wrongCount = wrongCount,
                 blankCount = blankCount,

@@ -149,27 +149,33 @@ class CameraViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Grade using the calibrated correct answers
+                // Grade using the calibrated correct answers and per-question scores
+                val template = try {
+                    json.decodeFromString<TemplateJson>(paper.templateJson)
+                } catch (_: Exception) { null }
+                val qScores = template?.questionScores ?: emptyList()
+                val total = template?.totalScore ?: 100.0
+
                 val gradingResult = withContext(Dispatchers.Default) {
                     com.xiaoyuezhu.app.grader.GradeEngine.grade(
-                        paper.correctAnswerJson, studentAnswerJson, 100.0
+                        paper.correctAnswerJson, studentAnswerJson, total, qScores
                     )
                 } ?: run { _uiState.update { it.copy(status = ScanStatus.ERROR, errorMessage = "判分失败") }; return@launch }
 
                 when (val saveResult = gradeRepository.saveGrade(
-                    st.classId, st.paperId, paper.title, studentId, gradingResult.score, 100.0,
+                    st.classId, st.paperId, paper.title, studentId, gradingResult.score, total,
                     studentAnswerJson, gradingResult.correctCount, gradingResult.wrongCount, gradingResult.blankCount
                 )) {
                     is SaveGradeResult.Success -> _uiState.update {
                         it.copy(status = ScanStatus.SUCCESS, studentId = studentId,
-                            score = gradingResult.score, totalScore = 100.0,
+                            score = gradingResult.score, totalScore = total,
                             correctCount = gradingResult.correctCount,
                             wrongCount = gradingResult.wrongCount,
                             blankCount = gradingResult.blankCount)
                     }
                     is SaveGradeResult.Conflict -> _uiState.update {
                         it.copy(status = ScanStatus.DUPLICATE, studentId = studentId,
-                            score = gradingResult.score, totalScore = 100.0,
+                            score = gradingResult.score, totalScore = total,
                             correctCount = gradingResult.correctCount,
                             wrongCount = gradingResult.wrongCount,
                             blankCount = gradingResult.blankCount,

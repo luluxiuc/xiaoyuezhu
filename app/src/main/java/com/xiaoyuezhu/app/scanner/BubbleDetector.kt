@@ -48,7 +48,7 @@ object BubbleDetector {
     ): DiscoveredLayout? {
         val w = warped.cols()
         val h = warped.rows()
-        val estimatedRadius = (w * 60.0 / 1800.0).toInt().coerceIn(25, 55)  // ~40px at 1200w
+        val estimatedRadius = (w * 45.0 / 1800.0).toInt().coerceIn(20, 45)  // ~30px at 1200w
 
         Timber.d("BubbleDetector: 图像=%dx%d 预估半径=%d", w, h, estimatedRadius)
 

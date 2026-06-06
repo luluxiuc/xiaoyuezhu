@@ -35,6 +35,12 @@ class PaperRepositoryImpl @Inject constructor(
 
     override suspend fun deletePaper(id: String) {
         try {
+            val paper = paperDao.getPaperById(id)
+            // Delete image file
+            if (paper != null) {
+                val imageFile = java.io.File(paper.imagePath)
+                if (imageFile.exists()) imageFile.delete()
+            }
             paperDao.deleteById(id)
             Timber.i("答题卡已删除: $id")
         } catch (e: Exception) {

@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,8 @@ fun HomeScreen(
                     papers = uiState.papers,
                     onCreateNew = { onNavigateToPaperEditor("new") },
                     onEditPaper = { onNavigateToPaperEditor(it.id) },
-                    onCalibrate = { onCalibratePaper(it.id) }
+                    onCalibrate = { onCalibratePaper(it.id) },
+                    onDeletePaper = { viewModel.showDeletePaperDialog() }
                 )
                 1 -> ClassesTab(
                     classes = uiState.classes,
@@ -106,6 +108,61 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.hideCreateClassDialog() }) { Text("取消") }
+            }
+        )
+    }
+
+    // Delete paper dialog
+    if (uiState.showDeletePaperDialog) {
+        val selectedId = uiState.selectedDeletePaperId
+        AlertDialog(
+            onDismissRequest = { viewModel.hideDeletePaperDialog() },
+            title = { Text("删除答题卡") },
+            text = {
+                if (uiState.papers.isEmpty()) {
+                    Text("没有可删除的答题卡")
+                } else {
+                    Column {
+                        Text("选择要删除的答题卡：", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(8.dp))
+                        uiState.papers.forEach { paper ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.selectPaperToDelete(paper.id) }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selectedId == paper.id,
+                                    onClick = { viewModel.selectPaperToDelete(paper.id) }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(paper.title, style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium)
+                                    Text(
+                                        if (paper.masterJson.isNotBlank()) "已校准 · 删除将同时清除关联的考试和成绩"
+                                        else "未校准",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (paper.masterJson.isNotBlank()) Red500 else Gray500
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.confirmDeletePaper() },
+                    enabled = selectedId != null
+                ) {
+                    Text("删除", color = if (selectedId != null) Red500 else Gray400)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDeletePaperDialog() }) { Text("取消") }
             }
         )
     }
@@ -139,7 +196,8 @@ fun PapersTab(
     papers: List<Paper>,
     onCreateNew: () -> Unit,
     onEditPaper: (Paper) -> Unit,
-    onCalibrate: (Paper) -> Unit
+    onCalibrate: (Paper) -> Unit,
+    onDeletePaper: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -214,6 +272,19 @@ fun PapersTab(
                 Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("新建答题卡")
+            }
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onDeletePaper,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Red500)
+            ) {
+                Icon(Icons.Filled.Delete, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("删除答题卡")
             }
         }
         item { Spacer(Modifier.height(80.dp)) }

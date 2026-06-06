@@ -12,20 +12,20 @@ class LayoutEngine {
         const val BORDER_INSET = 10f; const val BORDER_W = 16f
         const val TITLE_H = 64f
 
-        // All circles doubled — 120px diameter
-        const val CIRCLE_R = 60f; const val CIRCLE_D = 120f; const val CIRCLE_STROKE = 5f
-        const val OPT_GAP = 24f; const val Q_GAP = 140f; const val Q_PER_ROW = 2
-        const val ROW_H = 220f
+        // 90px diameter (0.75× from 120px)
+        const val CIRCLE_R = 45f; const val CIRCLE_D = 90f
+        const val OPT_GAP = 18f; const val Q_GAP = 105f; const val Q_PER_ROW = 2
+        const val ROW_H = 165f
 
         // ID: vertical columns, same size
-        const val ID_V_GAP = 20f; const val ID_COL_GAP = 40f
+        const val ID_V_GAP = 15f; const val ID_COL_GAP = 30f
     }
 
     fun calculate(spec: PaperSpec): LayoutResult {
         val top = TITLE_H + 80f
 
         // ── ID: 2 vertical columns on left ──
-        val idColH = 10 * CIRCLE_D + 9 * ID_V_GAP  // 10*60 + 9*12 = 708
+        val idColH = 10 * CIRCLE_D + 9 * ID_V_GAP  // 10*90 + 9*15 = 1035
         val idStartY = top
         val idStartX = 52f
         val idColCX = idStartX + CIRCLE_R
@@ -39,29 +39,52 @@ class LayoutEngine {
             }
         }
 
-        // ── Answer section: same circles, right of ID ──
-        val idRightEdge = idColCX + (spec.studentIdDigits - 1) * (CIRCLE_D + ID_COL_GAP) + CIRCLE_R + 50f
+        // ── Answer section: per-question option counts ──
+        val idRightEdge = idColCX + (spec.studentIdDigits - 1) * (CIRCLE_D + ID_COL_GAP) + CIRCLE_R + 38f
         val ansAvailW = CANVAS_WIDTH - idRightEdge - 30f
-        val ansStep = CIRCLE_D + OPT_GAP  // 60+18=78
-        val perQ = spec.optionCount * ansStep - OPT_GAP  // 4*78-18=294
-        val ansTotalW = Q_PER_ROW * perQ + (Q_PER_ROW - 1) * Q_GAP  // 4*294+3*100=1476
-        val ansStartX = idRightEdge + ((ansAvailW - ansTotalW) / 2f).coerceAtLeast(0f)
-        val ansStartY = top + CIRCLE_R + 20f
+        val ansStep = CIRCLE_D + OPT_GAP  // 90+18=108
+        val ansStartY = top + CIRCLE_R + 15f
 
+        // Compute total width needed: sum of per-question widths + gaps between them
         val totalRows = ceil(spec.questionCount.toDouble() / Q_PER_ROW).toInt()
         val answerRows = mutableListOf<RowData>()
+        val labels = ('A'..'Z').toList()
+
+        // Find max row width to center-align
+        var maxRowW = 0f
+        val rowLayouts = mutableListOf<List<Float>>() // per-row list of question widths
+        for (ri in 0 until totalRows) {
+            val qWidths = mutableListOf<Float>()
+            var rowW = 0f
+            for (q in 0 until Q_PER_ROW) {
+                val qi = ri * Q_PER_ROW + q
+                if (qi >= spec.questionCount) break
+                val oc = spec.optionCounts.getOrElse(qi) { 4 }
+                val qw = oc * ansStep  // width of this question's bubbles
+                qWidths.add(qw)
+                rowW += qw
+                if (q > 0) rowW += Q_GAP
+            }
+            rowLayouts.add(qWidths)
+            if (rowW > maxRowW) maxRowW = rowW
+        }
+
+        val ansStartX = idRightEdge + ((ansAvailW - maxRowW) / 2f).coerceAtLeast(0f)
 
         for (ri in 0 until totalRows) {
             val ry = ansStartY + ri * ROW_H
             val bubbles = mutableListOf<BubblePos>()
-            val l = ('A'..'Z').toList()
+            var qx = ansStartX
             for (q in 0 until Q_PER_ROW) {
                 val qi = ri * Q_PER_ROW + q
                 if (qi >= spec.questionCount) break
-                val qx = ansStartX + q * (perQ + Q_GAP)
-                for (o in 0 until spec.optionCount) {
-                    bubbles.add(BubblePos(qx + o * ansStep + CIRCLE_R, ry, "${l[o]}", false))
+                val oc = spec.optionCounts.getOrElse(qi) { 4 }
+                for (o in 0 until oc) {
+                    val label = labels.getOrElse(o) { ('A' + o) }.toString()
+                    bubbles.add(BubblePos(qx + o * ansStep + CIRCLE_R, ry, label, false))
                 }
+                val qw = oc * ansStep
+                qx += qw + Q_GAP
             }
             answerRows.add(RowData(ry, ri, false, bubbles))
         }
@@ -69,8 +92,8 @@ class LayoutEngine {
         val idRow = RowData(0f, -1, true, idBubbles)
         val rows = listOf(idRow) + answerRows
         val lastRow = rows.last()
-        val canvasH = (lastRow.y + CIRCLE_R + 100f).toInt()
-        val paddedH = maxOf(canvasH.toFloat(), idStartY + idColH + 100f).toInt()
+        val canvasH = (lastRow.y + CIRCLE_R + 75f).toInt()
+        val paddedH = maxOf(canvasH.toFloat(), idStartY + idColH + 75f).toInt()
         return LayoutResult(CANVAS_WIDTH, paddedH, rows)
     }
 }

@@ -221,12 +221,29 @@ class ScanProcessor @Inject constructor() {
 
             // Build answer output
             val answers = answerFills.mapIndexed { qi, fills ->
-                val maxIdx = fills.indices.maxByOrNull { answerMeasurements[qi][it] } ?: 0
-                val selected = if (fills[maxIdx]) {
-                    val label = m.optionLabels.getOrElse(maxIdx) { ('A' + maxIdx).toString() }
-                    listOf(label)
+                val masterQ = m.questions.getOrNull(qi)
+                val isMultiSelect = (masterQ?.allCorrect?.size ?: 1) > 1
+                val selected = if (isMultiSelect) {
+                    // Multi-select: collect ALL filled options
+                    fills.indices.filter { fills[it] }.map { idx ->
+                        m.optionLabels.getOrElse(idx) { ('A' + idx).toString() }
+                    }
                 } else {
-                    emptyList()
+                    // Single-select: over-selection check
+                    val filledCount = fills.count { it }
+                    if (filledCount > 1) {
+                        // Student filled multiple options on a single-select question → wrong
+                        Timber.d("  题${qi + 1}: 单选涂多(填了${filledCount}个) → 判错")
+                        emptyList()
+                    } else {
+                        val maxIdx = fills.indices.maxByOrNull { answerMeasurements[qi][it] } ?: 0
+                        if (fills[maxIdx]) {
+                            val label = m.optionLabels.getOrElse(maxIdx) { ('A' + maxIdx).toString() }
+                            listOf(label)
+                        } else {
+                            emptyList()
+                        }
+                    }
                 }
                 AnswerItemJson(qi, selected)
             }

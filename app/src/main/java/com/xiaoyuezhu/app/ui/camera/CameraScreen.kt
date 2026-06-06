@@ -117,7 +117,7 @@ fun CameraScreen(
         // Duplicate
         if (uiState.status == ScanStatus.DUPLICATE) {
             AlertDialog(onDismissRequest = {}, title = { Text("重复扫描") },
-                text = { Text("学号 ${uiState.studentId} 已有成绩。\n得分: ${uiState.score.toInt()}分") },
+                text = { Text("学号 ${uiState.studentId} 已有成绩。\n得分: ${String.format("%.1f", uiState.score)}分") },
                 confirmButton = { TextButton(onClick = { viewModel.resetForNextScan(); onScanComplete(uiState.studentId) }) { Text("跳过") } },
                 dismissButton = { TextButton(onClick = { viewModel.resetForNextScan() }) { Text("覆盖") } })
         }

@@ -2,77 +2,184 @@ package com.xiaoyuezhu.app.ui.exam
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiaoyuezhu.app.domain.model.Exam
-import com.xiaoyuezhu.app.domain.model.Grade
+import com.xiaoyuezhu.app.domain.model.*
 import com.xiaoyuezhu.app.domain.repository.ClassRepository
 import com.xiaoyuezhu.app.domain.repository.GradeRepository
+import com.xiaoyuezhu.app.domain.repository.PaperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
+
+data class QuestionWrongCount(
+    val questionIndex: Int,
+    val wrongCount: Int,
+    val totalAnswers: Int,
+    val wrongRate: Double  // 0..1
+)
+
+data class GradeWithDetails(
+    val grade: Grade,
+    val questionResults: List<QuestionResultDetail>,  // per-question right/wrong
+    val studentName: String
+)
+
+data class QuestionResultDetail(
+    val questionIndex: Int,
+    val correctOptions: List<String>,
+    val studentOptions: List<String>,
+    val isCorrect: Boolean,
+    val isPartial: Boolean,
+    val isBlank: Boolean,
+    val earnedScore: Double,
+    val maxScore: Double
+)
 
 data class ExamDetailUiState(
     val exam: Exam? = null,
-    val grades: List<Grade> = emptyList(),
-    val studentNames: Map<String, String> = emptyMap(),
+    val grades: List<GradeWithDetails> = emptyList(),
     val averageScore: Double = 0.0,
     val highestScore: Double = 0.0,
     val lowestScore: Double = 0.0,
     val passRate: Double = 0.0,
-    val distribution: Map<String, Int> = emptyMap()
+    val distribution: Map<String, Int> = emptyMap(),
+    val mostWrongQuestions: List<QuestionWrongCount> = emptyList()
 )
 
 @HiltViewModel
 class ExamViewModel @Inject constructor(
     private val gradeRepository: GradeRepository,
-    private val classRepository: ClassRepository
+    private val classRepository: ClassRepository,
+    private val paperRepository: PaperRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ExamDetailUiState())
     val uiState: StateFlow<ExamDetailUiState> = _uiState.asStateFlow()
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     fun loadExam(examId: String) {
         viewModelScope.launch {
-            val exam = gradeRepository.getExamById(examId)
-            if (exam != null) {
-                val students = classRepository.getStudentsByClass(exam.classId)
-                val nameMap = students.associate { it.id to it.name }
+            val exam = gradeRepository.getExamById(examId) ?: return@launch
 
-                gradeRepository.getGradesByExam(examId).collect { grades ->
-                    val sorted = grades.sortedByDescending { it.score }
-                    val avg = if (sorted.isNotEmpty()) sorted.map { it.score }.average() else 0.0
-                    val highest = sorted.maxOfOrNull { it.score } ?: 0.0
-                    val lowest = sorted.minOfOrNull { it.score } ?: 0.0
-                    val passCount = sorted.count { it.score / it.totalScore >= 0.6 }
-                    val passRate = if (sorted.isNotEmpty()) passCount.toDouble() / sorted.size else 0.0
+            // Load paper for correct answers and per-question scores
+            val paper = paperRepository.getPaperById(exam.paperId)
+            val correctAnswers: List<AnswerItemJson> = try {
+                json.decodeFromString(paper?.correctAnswerJson ?: "[]")
+            } catch (_: Exception) { emptyList() }
+            val template = try {
+                json.decodeFromString<TemplateJson>(paper?.templateJson ?: "{}")
+            } catch (_: Exception) { null }
 
-                    val dist = mutableMapOf(
-                        "90-100" to 0, "80-89" to 0, "70-79" to 0,
-                        "60-69" to 0, "0-59" to 0
-                    )
-                    sorted.forEach { g ->
-                        val pct = g.score / g.totalScore * 100
-                        when {
-                            pct >= 90 -> dist["90-100"] = (dist["90-100"] ?: 0) + 1
-                            pct >= 80 -> dist["80-89"] = (dist["80-89"] ?: 0) + 1
-                            pct >= 70 -> dist["70-79"] = (dist["70-79"] ?: 0) + 1
-                            pct >= 60 -> dist["60-69"] = (dist["60-69"] ?: 0) + 1
-                            else -> dist["0-59"] = (dist["0-59"] ?: 0) + 1
+            val students = classRepository.getStudentsByClass(exam.classId)
+            val nameMap = students.associate { it.id to it.name }
+
+            gradeRepository.getGradesByExam(examId).collect { grades ->
+                // Build per-question details for each grade
+                val gradesWithDetails = grades.map { grade ->
+                    val studentAnswers: List<AnswerItemJson> = try {
+                        val sa = json.decodeFromString<StudentAnswerJson>(grade.studentAnswerJson)
+                        sa.answers
+                    } catch (_: Exception) { emptyList() }
+
+                    val details = correctAnswers.map { correct ->
+                        val qi = correct.questionIndex
+                        val student = studentAnswers.find { it.questionIndex == qi }
+                        val studentOpts = student?.selectedOptions ?: emptyList()
+                        val correctSet = correct.selectedOptions.toSet()
+                        val studentSet = studentOpts.toSet()
+                        val isBlank = studentOpts.isEmpty()
+                        val hasWrong = studentSet.any { it !in correctSet }
+                        val hasCorrect = studentSet.any { it in correctSet }
+                        val isFullCorrect = !isBlank && studentSet == correctSet
+                        val isPartial = !isBlank && !isFullCorrect && !hasWrong && hasCorrect
+                        val maxScore = template?.scoreFor(qi) ?: (100.0 / correctAnswers.size)
+                        val earnedScore = when {
+                            isFullCorrect -> maxScore
+                            isPartial -> maxScore / 2.0
+                            else -> 0.0
                         }
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            exam = exam,
-                            grades = sorted,
-                            studentNames = nameMap,
-                            averageScore = avg,
-                            highestScore = highest,
-                            lowestScore = lowest,
-                            passRate = passRate,
-                            distribution = dist
+                        QuestionResultDetail(
+                            questionIndex = qi,
+                            correctOptions = correct.selectedOptions,
+                            studentOptions = studentOpts,
+                            isCorrect = isFullCorrect,
+                            isPartial = isPartial,
+                            isBlank = isBlank,
+                            earnedScore = earnedScore,
+                            maxScore = maxScore
                         )
                     }
+
+                    GradeWithDetails(
+                        grade = grade,
+                        questionResults = details,
+                        studentName = nameMap[grade.studentId] ?: "未知"
+                    )
+                }.sortedByDescending { it.grade.score }
+
+                // Statistics — use per-grade totalScore
+                val avg = if (grades.isNotEmpty()) grades.map { it.score }.average() else 0.0
+                val highest = grades.maxOfOrNull { it.score } ?: 0.0
+                val lowest = grades.minOfOrNull { it.score } ?: 0.0
+                val totalForDist = grades.maxOfOrNull { it.totalScore } ?: 100.0
+                val passCount = grades.count { it.totalScore > 0 && it.score / it.totalScore >= 0.6 }
+                val passRate = if (grades.isNotEmpty()) passCount.toDouble() / grades.size else 0.0
+
+                // Dynamic score ranges based on actual total
+                val totalI = totalForDist.toInt().coerceAtLeast(1)
+                val segSize = maxOf((totalI + 4) / 5, 1)  // ~5 segments, min 1 point wide
+                val dist = linkedMapOf<String, Int>()
+                var rangeStart = totalI
+                while (rangeStart > 0) {
+                    val rangeEnd = maxOf(rangeStart - segSize + 1, 0)
+                    val label = if (rangeStart == rangeEnd) "$rangeStart"
+                                else "$rangeEnd-$rangeStart"
+                    dist[label] = 0
+                    rangeStart -= segSize
+                }
+                grades.forEach { g ->
+                    val s = g.score.toInt()
+                    val label = dist.keys.firstOrNull { key ->
+                        val parts = key.split("-")
+                        val lo = parts.first().toIntOrNull() ?: 0
+                        val hi = parts.last().toIntOrNull() ?: 0
+                        s in lo..hi
+                    }
+                    if (label != null) dist[label] = (dist[label] ?: 0) + 1
+                }
+
+                // Most wrong questions
+                val wrongCounts = mutableMapOf<Int, Int>()
+                for (gd in gradesWithDetails) {
+                    for (qr in gd.questionResults) {
+                        if (!qr.isCorrect && !qr.isBlank) {
+                            wrongCounts[qr.questionIndex] =
+                                (wrongCounts[qr.questionIndex] ?: 0) + 1
+                        }
+                    }
+                }
+                val totalStudents = grades.size
+                val mostWrong = wrongCounts.entries
+                    .sortedByDescending { it.value }
+                    .take(5)
+                    .map { (qi, count) ->
+                        QuestionWrongCount(qi, count, totalStudents,
+                            if (totalStudents > 0) count.toDouble() / totalStudents else 0.0)
+                    }
+
+                _uiState.update {
+                    it.copy(
+                        exam = exam,
+                        grades = gradesWithDetails,
+                        averageScore = avg,
+                        highestScore = highest,
+                        lowestScore = lowest,
+                        passRate = passRate,
+                        distribution = dist,
+                        mostWrongQuestions = mostWrong
+                    )
                 }
             }
         }

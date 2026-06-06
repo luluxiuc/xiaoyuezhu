@@ -9,7 +9,7 @@ class CanvasDrawer {
         color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 14f; isAntiAlias = true
     }
     private val circlePaint = Paint().apply {
-        color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 8f; isAntiAlias = true
+        color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 6f; isAntiAlias = true
     }
     private val labelPaint = Paint().apply {
         color = Color.BLACK; textSize = 20f; isAntiAlias = true
@@ -57,22 +57,28 @@ class CanvasDrawer {
                     val cols = row.bubbles.groupBy { it.cx }
                     val xs = cols.keys.sorted()
                     if (xs.size >= 2) {
-                        c.drawText("十位", xs[0], row.bubbles.last().cy + 24f, hintPaint)
-                        c.drawText("个位", xs[1], row.bubbles.last().cy + 24f, hintPaint)
+                        c.drawText("十位", xs[0], row.bubbles.last().cy + 18f, hintPaint)
+                        c.drawText("个位", xs[1], row.bubbles.last().cy + 18f, hintPaint)
                     }
                 }
             } else {
-                // Answer row
+                // Answer row — draw each bubble with its label
                 for (b in row.bubbles) {
                     c.drawCircle(b.cx, b.cy, LayoutEngine.CIRCLE_R, circlePaint)
-                    c.drawText(b.label, b.cx, b.cy + LayoutEngine.CIRCLE_R + 24f, labelPaint)
+                    c.drawText(b.label, b.cx, b.cy + LayoutEngine.CIRCLE_R + 18f, labelPaint)
                 }
-                val groups = row.bubbles.chunked(spec.optionCount)
-                for ((gi, group) in groups.withIndex()) {
-                    val qi = row.index * LayoutEngine.Q_PER_ROW + gi
+                // Draw question numbers using per-question option counts
+                var bubbleIdx = 0
+                for (q in 0 until LayoutEngine.Q_PER_ROW) {
+                    val qi = row.index * LayoutEngine.Q_PER_ROW + q
                     if (qi >= spec.questionCount) break
-                    c.drawText("${qi + 1}.", group.first().cx - LayoutEngine.CIRCLE_R - 20f,
-                        group.first().cy + 7f, qNumPaint)
+                    val oc = spec.optionCounts.getOrElse(qi) { 4 }
+                    if (bubbleIdx < row.bubbles.size) {
+                        val firstBubble = row.bubbles[bubbleIdx]
+                        c.drawText("${qi + 1}.", firstBubble.cx - LayoutEngine.CIRCLE_R - 15f,
+                            firstBubble.cy + 7f, qNumPaint)
+                        bubbleIdx += oc
+                    }
                 }
             }
         }
@@ -95,26 +101,33 @@ class CanvasDrawer {
         val qRects = mutableListOf<com.xiaoyuezhu.app.domain.model.QuestionRectRef>()
         for (row in layout.rows) {
             if (row.isIdRow) continue
-            val groups = row.bubbles.chunked(spec.optionCount)
-            for ((gi, group) in groups.withIndex()) {
-                val qi = row.index * LayoutEngine.Q_PER_ROW + gi
+            var bubbleIdx = 0
+            for (q in 0 until LayoutEngine.Q_PER_ROW) {
+                val qi = row.index * LayoutEngine.Q_PER_ROW + q
                 if (qi >= spec.questionCount) break
-                val x0 = group.first().cx - LayoutEngine.CIRCLE_R
-                val x1 = group.last().cx + LayoutEngine.CIRCLE_R
-                val y0 = row.y - LayoutEngine.CIRCLE_R
-                val y1 = row.y + LayoutEngine.CIRCLE_R
-                qRects.add(com.xiaoyuezhu.app.domain.model.QuestionRectRef(
-                    qi, x0, y0, x1 - x0, y1 - y0
-                ))
+                val oc = spec.optionCounts.getOrElse(qi) { 4 }
+                if (bubbleIdx + oc <= row.bubbles.size) {
+                    val group = row.bubbles.subList(bubbleIdx, bubbleIdx + oc)
+                    val x0 = group.first().cx - LayoutEngine.CIRCLE_R
+                    val x1 = group.last().cx + LayoutEngine.CIRCLE_R
+                    val y0 = row.y - LayoutEngine.CIRCLE_R
+                    val y1 = row.y + LayoutEngine.CIRCLE_R
+                    qRects.add(com.xiaoyuezhu.app.domain.model.QuestionRectRef(
+                        qi, x0, y0, x1 - x0, y1 - y0
+                    ))
+                    bubbleIdx += oc
+                }
             }
         }
 
         val json = TemplateJson(
-            version = 5, canvasWidth = layout.canvasWidth, canvasHeight = layout.canvasHeight,
-            questionCount = spec.questionCount, optionCount = spec.optionCount,
+            version = 6, canvasWidth = layout.canvasWidth, canvasHeight = layout.canvasHeight,
+            questionCount = spec.questionCount, optionCount = spec.optionCounts.firstOrNull() ?: 4,
+            optionCounts = spec.optionCounts,
             studentIdDigits = spec.studentIdDigits, idDigitCount = 10,
             questionsPerRow = LayoutEngine.Q_PER_ROW,
-            idColumns = idCols, questionRects = qRects
+            idColumns = idCols, questionRects = qRects,
+            questionScores = spec.questionScores
         )
         return Pair(bmp, json)
     }

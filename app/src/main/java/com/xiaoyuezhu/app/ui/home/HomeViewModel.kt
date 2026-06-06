@@ -18,7 +18,9 @@ data class HomeUiState(
     val paperCount: Int = 0,
     val classCount: Int = 0,
     val showCreateClassDialog: Boolean = false,
-    val newClassName: String = ""
+    val newClassName: String = "",
+    val showDeletePaperDialog: Boolean = false,
+    val selectedDeletePaperId: String? = null
 )
 
 @HiltViewModel
@@ -42,7 +44,17 @@ class HomeViewModel @Inject constructor(
                     paperCount = papers.size,
                     classCount = classes.size
                 )
-            }.collect { _uiState.value = it }
+            }.collect { base ->
+                // Preserve dialog state when data refreshes
+                _uiState.update { current ->
+                    current.copy(
+                        papers = base.papers,
+                        classes = base.classes,
+                        paperCount = base.paperCount,
+                        classCount = base.classCount
+                    )
+                }
+            }
         }
     }
 
@@ -70,5 +82,32 @@ class HomeViewModel @Inject constructor(
                 Timber.e(e, "创建班级失败")
             }
         }
+    }
+
+    // ── Delete paper ──
+
+    fun showDeletePaperDialog() {
+        _uiState.update { it.copy(showDeletePaperDialog = true, selectedDeletePaperId = null) }
+    }
+
+    fun hideDeletePaperDialog() {
+        _uiState.update { it.copy(showDeletePaperDialog = false, selectedDeletePaperId = null) }
+    }
+
+    fun selectPaperToDelete(paperId: String) {
+        _uiState.update { it.copy(selectedDeletePaperId = paperId) }
+    }
+
+    fun confirmDeletePaper() {
+        val paperId = _uiState.value.selectedDeletePaperId ?: return
+        viewModelScope.launch {
+            try {
+                paperRepository.deletePaper(paperId)
+                Timber.i("答题卡已删除: $paperId")
+            } catch (e: Exception) {
+                Timber.e(e, "删除答题卡失败")
+            }
+        }
+        _uiState.update { it.copy(showDeletePaperDialog = false, selectedDeletePaperId = null) }
     }
 }
