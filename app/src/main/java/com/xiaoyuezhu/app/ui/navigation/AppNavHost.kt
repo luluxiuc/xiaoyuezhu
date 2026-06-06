@@ -110,7 +110,7 @@ fun AppNavHost() {
                     classId = "", paperId = entry.arguments?.getString("paperId") ?: "",
                     isCalibration = true,
                     onNavigateBack = { navController.popBackStack() },
-                    onScanComplete = { navController.popBackStack() }
+                    onScanComplete = { _, _, _, _, _, _ -> navController.popBackStack() }
                 )
             }
 
@@ -122,10 +122,10 @@ fun AppNavHost() {
                     classId = entry.arguments?.getString("classId") ?: "",
                     paperId = entry.arguments?.getString("paperId") ?: "",
                     onNavigateBack = { navController.popBackStack() },
-                    onScanComplete = { sid ->
+                    onScanComplete = { sid, score, total, correct, wrong, blank ->
                         val cid = entry.arguments?.getString("classId") ?: ""
                         val pid = entry.arguments?.getString("paperId") ?: ""
-                        navController.navigate(Routes.scanResult(cid, pid, sid)) {
+                        navController.navigate(Routes.scanResult(cid, pid, sid, score, total, correct, wrong, blank)) {
                             popUpTo(Routes.CAMERA_SCAN) { inclusive = true }
                         }
                     }
@@ -135,11 +135,22 @@ fun AppNavHost() {
             composable(Routes.SCAN_RESULT, arguments = listOf(
                 navArgument("classId") { type = NavType.StringType },
                 navArgument("paperId") { type = NavType.StringType },
-                navArgument("studentId") { type = NavType.StringType })) { entry ->
+                navArgument("studentId") { type = NavType.StringType },
+                navArgument("score") { type = NavType.FloatType; defaultValue = 0f },
+                navArgument("total") { type = NavType.FloatType; defaultValue = 0f },
+                navArgument("correct") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("wrong") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("blank") { type = NavType.IntType; defaultValue = 0 }
+            )) { entry ->
                 ScanResultScreen(
                     classId = entry.arguments?.getString("classId") ?: "",
                     paperId = entry.arguments?.getString("paperId") ?: "",
                     studentId = entry.arguments?.getString("studentId") ?: "",
+                    score = (entry.arguments?.getFloat("score") ?: 0f).toDouble(),
+                    total = (entry.arguments?.getFloat("total") ?: 0f).toDouble(),
+                    correct = entry.arguments?.getInt("correct") ?: 0,
+                    wrong = entry.arguments?.getInt("wrong") ?: 0,
+                    blank = entry.arguments?.getInt("blank") ?: 0,
                     onContinueScan = {
                         val cid = entry.arguments?.getString("classId") ?: ""
                         val pid = entry.arguments?.getString("paperId") ?: ""

@@ -32,7 +32,7 @@ fun CameraScreen(
     classId: String, paperId: String,
     isCalibration: Boolean = false,
     onNavigateBack: () -> Unit,
-    onScanComplete: (String) -> Unit,
+    onScanComplete: (studentId: String, score: Double, total: Double, correct: Int, wrong: Int, blank: Int) -> Unit,
     viewModel: CameraViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -118,17 +118,22 @@ fun CameraScreen(
         if (uiState.status == ScanStatus.DUPLICATE) {
             AlertDialog(onDismissRequest = {}, title = { Text("重复扫描") },
                 text = { Text("学号 ${uiState.studentId} 已有成绩。\n得分: ${String.format("%.1f", uiState.score)}分") },
-                confirmButton = { TextButton(onClick = { viewModel.resetForNextScan(); onScanComplete(uiState.studentId) }) { Text("跳过") } },
+                confirmButton = { TextButton(onClick = {
+                    viewModel.resetForNextScan()
+                    onScanComplete(uiState.studentId, uiState.score, uiState.totalScore,
+                        uiState.correctCount, uiState.wrongCount, uiState.blankCount)
+                }) { Text("跳过") } },
                 dismissButton = { TextButton(onClick = { viewModel.overwriteGrade() }) { Text("覆盖") } })
         }
 
         // Success / Calibrated
         LaunchedEffect(uiState.status) {
             when (uiState.status) {
-                ScanStatus.SUCCESS -> onScanComplete(uiState.studentId)
-                ScanStatus.CALIBRATED -> {
-                    onNavigateBack()
-                }
+                ScanStatus.SUCCESS -> onScanComplete(
+                    uiState.studentId, uiState.score, uiState.totalScore,
+                    uiState.correctCount, uiState.wrongCount, uiState.blankCount
+                )
+                ScanStatus.CALIBRATED -> { onNavigateBack() }
                 else -> {}
             }
         }
