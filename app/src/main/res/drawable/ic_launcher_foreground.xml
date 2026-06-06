@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple checkmark/paper icon for launcher -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,38h32v32h-32z"/>
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M42,54l6,6l16,-18"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"/>
+</vector>
