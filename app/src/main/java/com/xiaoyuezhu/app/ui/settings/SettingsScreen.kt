@@ -71,7 +71,7 @@ fun SettingsScreen(onNavigateToTutorial: () -> Unit = {}) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("使用日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     Text("如果应用出现异常，可以导出日志文件帮助排查问题。",
                         style = MaterialTheme.typography.bodySmall, color = Gray500)

@@ -25,7 +25,6 @@ class FileLoggingTree(private val logDir: File) : Timber.DebugTree() {
         val time = timeFormat.format(Date())
         val line = "$time $level/${tag ?: "APP"}: $message"
         AppLogger.pushToCrashQueue(line)
-        DebugLogBuffer.add(line)
         try {
             val today = dateFormat.format(Date())
             val logFile = File(logDir, "app_$today.log")
