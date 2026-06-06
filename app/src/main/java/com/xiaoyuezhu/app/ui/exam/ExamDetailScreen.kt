@@ -1,5 +1,6 @@
 package com.xiaoyuezhu.app.ui.exam
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,14 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xiaoyuezhu.app.ui.theme.*
 import com.xiaoyuezhu.app.ui.components.EmptyState
+import java.io.File
 import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,9 +38,24 @@ fun ExamDetailScreen(
     viewModel: ExamViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val df = remember { DecimalFormat("0.#") }
 
     LaunchedEffect(examId) { viewModel.loadExam(examId) }
+
+    // Handle CSV share
+    LaunchedEffect(uiState.exportCsvPath) {
+        val path = uiState.exportCsvPath ?: return@LaunchedEffect
+        val file = File(path)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "导出成绩"))
+        viewModel.clearExport()
+    }
 
     Scaffold(
         topBar = {
@@ -45,6 +64,11 @@ fun ExamDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.exportCsv() }) {
+                        Icon(Icons.Filled.FileDownload, "导出CSV")
                     }
                 }
             )

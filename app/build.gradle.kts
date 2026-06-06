@@ -14,14 +14,25 @@ android {
         applicationId = "com.xiaoyuezhu.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 15
-        versionName = "3.0.0"
+        versionCode = 16
+        versionName = "5.0.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    // Strip non-arm64 native libs for release to reduce APK size
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += setOf("**/x86/*", "**/x86_64/*")
         }
     }
 

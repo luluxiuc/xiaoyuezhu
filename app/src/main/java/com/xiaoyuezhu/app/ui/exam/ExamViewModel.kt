@@ -1,5 +1,6 @@
 package com.xiaoyuezhu.app.ui.exam
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaoyuezhu.app.domain.model.*
@@ -7,9 +8,14 @@ import com.xiaoyuezhu.app.domain.repository.ClassRepository
 import com.xiaoyuezhu.app.domain.repository.GradeRepository
 import com.xiaoyuezhu.app.domain.repository.PaperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.File
+import java.text.DecimalFormat
 import javax.inject.Inject
 
 data class QuestionWrongCount(
@@ -44,15 +50,19 @@ data class ExamDetailUiState(
     val lowestScore: Double = 0.0,
     val passRate: Double = 0.0,
     val distribution: Map<String, Int> = emptyMap(),
-    val mostWrongQuestions: List<QuestionWrongCount> = emptyList()
+    val mostWrongQuestions: List<QuestionWrongCount> = emptyList(),
+    val exportCsvPath: String? = null
 )
 
 @HiltViewModel
 class ExamViewModel @Inject constructor(
     private val gradeRepository: GradeRepository,
     private val classRepository: ClassRepository,
-    private val paperRepository: PaperRepository
+    private val paperRepository: PaperRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
+
+    private val df = DecimalFormat("0.#")
 
     private val _uiState = MutableStateFlow(ExamDetailUiState())
     val uiState: StateFlow<ExamDetailUiState> = _uiState.asStateFlow()
@@ -183,5 +193,61 @@ class ExamViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun exportCsv() {
+        val st = _uiState.value
+        val grades = st.grades
+        if (grades.isEmpty()) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val file = File(appContext.cacheDir, "grades_export.csv")
+                    file.bufferedWriter().use { writer ->
+                        // BOM for Excel UTF-8
+                        writer.write("﻿")
+                        // Header
+                        val totalQuestions = grades.firstOrNull()?.questionResults?.size ?: 0
+                        val qHeaders = (1..totalQuestions).joinToString(",") { "第${it}题" }
+                        writer.write("学号,姓名,得分,总分,正确,错误,未答,$qHeaders\n")
+                        // Rows
+                        for (gd in grades) {
+                            val qResults = gd.questionResults.joinToString(",") { qr ->
+                                when {
+                                    qr.isCorrect -> "✓"
+                                    qr.isPartial -> "半对"
+                                    qr.isBlank -> "未答"
+                                    else -> "✗"
+                                }
+                            }
+                            writer.write("${gd.grade.studentId},${gd.studentName}," +
+                                "${df.format(gd.grade.score)},${df.format(gd.grade.totalScore)}," +
+                                "${gd.grade.correctCount},${gd.grade.wrongCount},${gd.grade.blankCount}," +
+                                "$qResults\n")
+                        }
+                        // Summary
+                        writer.write("\n统计\n")
+                        writer.write("平均分,${df.format(st.averageScore)}\n")
+                        writer.write("最高分,${df.format(st.highestScore)}\n")
+                        writer.write("最低分,${df.format(st.lowestScore)}\n")
+                        writer.write("及格率,${String.format("%.0f%%", st.passRate * 100)}\n")
+                        if (st.mostWrongQuestions.isNotEmpty()) {
+                            writer.write("\n易错题\n")
+                            st.mostWrongQuestions.forEach { mwq ->
+                                writer.write("第${mwq.questionIndex + 1}题," +
+                                    "${mwq.wrongCount}/${mwq.totalAnswers}人错\n")
+                            }
+                        }
+                    }
+                    _uiState.update { it.copy(exportCsvPath = file.absolutePath) }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    fun clearExport() {
+        _uiState.update { it.copy(exportCsvPath = null) }
     }
 }
