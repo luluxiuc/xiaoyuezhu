@@ -18,8 +18,18 @@ android {
         versionName = "5.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../xiaoyuezhu.keystore")
+            storePassword = "xiaoyuezhu2026"
+            keyAlias = "xiaoyuezhu"
+            keyPassword = "xiaoyuezhu2026"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
