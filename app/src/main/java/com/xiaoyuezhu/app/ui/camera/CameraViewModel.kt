@@ -40,7 +40,9 @@ data class CameraUiState(
     val wrongCount: Int = 0,
     val blankCount: Int = 0,
     val errorMessage: String? = null,
-    val duplicateGrade: Any? = null
+    val duplicateGrade: Any? = null,
+    // Pending overwrite data
+    val pendingAnswerJson: String? = null
 )
 
 @HiltViewModel
@@ -179,7 +181,8 @@ class CameraViewModel @Inject constructor(
                             correctCount = gradingResult.correctCount,
                             wrongCount = gradingResult.wrongCount,
                             blankCount = gradingResult.blankCount,
-                            duplicateGrade = saveResult.existingGrade)
+                            duplicateGrade = saveResult.existingGrade,
+                            pendingAnswerJson = studentAnswerJson)
                     }
                     is SaveGradeResult.Error -> _uiState.update {
                         it.copy(status = ScanStatus.ERROR, errorMessage = saveResult.message)
@@ -192,11 +195,40 @@ class CameraViewModel @Inject constructor(
         }
     }
 
+    fun overwriteGrade() {
+        val st = _uiState.value
+        val answerJson = st.pendingAnswerJson ?: return
+        viewModelScope.launch {
+            try {
+                val result = gradeRepository.overwriteGrade(
+                    st.classId, st.paperId, "", st.studentId,
+                    st.score, st.totalScore, answerJson,
+                    st.correctCount, st.wrongCount, st.blankCount
+                )
+                when (result) {
+                    is SaveGradeResult.Success -> _uiState.update {
+                        it.copy(status = ScanStatus.SUCCESS, duplicateGrade = null,
+                            pendingAnswerJson = null)
+                    }
+                    else -> _uiState.update {
+                        it.copy(status = ScanStatus.ERROR,
+                            errorMessage = "覆盖失败")
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "覆盖成绩失败")
+                _uiState.update { it.copy(status = ScanStatus.ERROR,
+                    errorMessage = e.message) }
+            }
+        }
+    }
+
     fun resetForNextScan() {
         scanProcessor.reset()
         _uiState.update { it.copy(status = ScanStatus.SEARCHING, studentId = "", score = 0.0,
             correctCount = 0, wrongCount = 0, blankCount = 0, errorMessage = null,
-            duplicateGrade = null, borderFound = false, triggerProgress = 0) }
+            duplicateGrade = null, pendingAnswerJson = null,
+            borderFound = false, triggerProgress = 0) }
     }
 
     fun clearError() = resetForNextScan()

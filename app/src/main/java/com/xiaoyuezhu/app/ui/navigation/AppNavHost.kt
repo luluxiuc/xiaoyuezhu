@@ -25,6 +25,7 @@ import com.xiaoyuezhu.app.ui.camera.CameraScreen
 import com.xiaoyuezhu.app.ui.scan.ScanResultScreen
 import com.xiaoyuezhu.app.ui.exam.ExamDetailScreen
 import com.xiaoyuezhu.app.ui.settings.SettingsScreen
+import com.xiaoyuezhu.app.ui.tutorial.TutorialScreen
 
 data class BottomNavItem(
     val route: String, val label: String,
@@ -85,7 +86,9 @@ fun AppNavHost() {
                 )
             }
 
-            composable(Routes.SETTINGS) { SettingsScreen() }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(onNavigateToTutorial = { navController.navigate(Routes.TUTORIAL) })
+            }
 
             composable(Routes.CLASS_DETAIL, arguments = listOf(
                 navArgument("classId") { type = NavType.StringType })) { entry ->
@@ -150,6 +153,10 @@ fun AppNavHost() {
                 navArgument("examId") { type = NavType.StringType })) { entry ->
                 ExamDetailScreen(examId = entry.arguments?.getString("examId") ?: "",
                     onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.TUTORIAL) {
+                TutorialScreen(onDismiss = { navController.popBackStack() })
             }
         }
     }

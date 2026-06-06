@@ -110,6 +110,55 @@ class GradeRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun overwriteGrade(
+        classId: String, paperId: String, paperTitle: String,
+        studentId: String, score: Double, totalScore: Double,
+        studentAnswerJson: String, correctCount: Int, wrongCount: Int, blankCount: Int
+    ): SaveGradeResult {
+        return try {
+            if (classDao.getClassById(classId) == null)
+                return SaveGradeResult.Error("班级不存在")
+            if (paperDao.getPaperById(paperId) == null)
+                return SaveGradeResult.Error("答题卡不存在")
+            if (studentDao.getStudent(classId, studentId) == null)
+                return SaveGradeResult.Error("学号 $studentId 不存在于该班级")
+
+            var exam = examDao.findByClassAndPaper(classId, paperId)
+            if (exam == null) {
+                val totalStudents = studentDao.getCountByClass(classId)
+                exam = ExamEntity(
+                    id = UUID.randomUUID().toString(), classId = classId,
+                    paperId = paperId, paperTitle = paperTitle,
+                    status = "SCANNING", gradedCount = 0,
+                    totalStudents = totalStudents,
+                    createdAt = System.currentTimeMillis()
+                )
+                examDao.insert(exam)
+            }
+
+            // Delete old grade, insert new
+            gradeDao.deleteByExamAndStudent(exam.id, studentId)
+            val grade = GradeEntity(
+                id = UUID.randomUUID().toString(), examId = exam.id,
+                studentId = studentId, score = score, totalScore = totalScore,
+                studentAnswerJson = studentAnswerJson,
+                correctCount = correctCount, wrongCount = wrongCount,
+                blankCount = blankCount, createdAt = System.currentTimeMillis()
+            )
+            gradeDao.insert(grade)
+
+            val newGradedCount = gradeDao.getCountByExam(exam.id)
+            val newStatus = if (newGradedCount >= exam.totalStudents) "COMPLETED" else "SCANNING"
+            examDao.update(exam.copy(gradedCount = newGradedCount, status = newStatus))
+
+            Timber.i("成绩已覆盖: examId=${exam.id}, studentId=$studentId, score=$score/$totalScore")
+            SaveGradeResult.Success(grade.toDomain())
+        } catch (e: Exception) {
+            Timber.e(e, "成绩覆盖失败")
+            SaveGradeResult.Error(e.message ?: "未知错误")
+        }
+    }
+
     override fun getExamsByClass(classId: String): Flow<List<Exam>> =
         examDao.getExamsByClass(classId).map { entities -> entities.map { it.toDomain() } }
 

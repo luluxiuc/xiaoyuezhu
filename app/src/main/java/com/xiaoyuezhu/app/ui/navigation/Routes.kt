@@ -10,6 +10,7 @@ object Routes {
     const val CAMERA_CALIBRATE = "camera_calibrate/{paperId}"
     const val SCAN_RESULT = "scan_result/{classId}/{paperId}/{studentId}"
     const val EXAM_DETAIL = "exam_detail/{examId}"
+    const val TUTORIAL = "tutorial"
 
     fun classDetail(classId: String) = "class_detail/$classId"
     fun paperEditor(paperId: String) = "paper_editor/$paperId"

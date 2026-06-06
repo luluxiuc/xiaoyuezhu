@@ -24,6 +24,19 @@ interface GradeRepository {
         blankCount: Int
     ): SaveGradeResult
 
+    suspend fun overwriteGrade(
+        classId: String,
+        paperId: String,
+        paperTitle: String,
+        studentId: String,
+        score: Double,
+        totalScore: Double,
+        studentAnswerJson: String,
+        correctCount: Int,
+        wrongCount: Int,
+        blankCount: Int
+    ): SaveGradeResult
+
     fun getExamsByClass(classId: String): Flow<List<Exam>>
     fun getGradesByExam(examId: String): Flow<List<Grade>>
     suspend fun getExamById(examId: String): Exam?

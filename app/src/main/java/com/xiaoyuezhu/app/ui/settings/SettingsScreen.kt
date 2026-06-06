@@ -24,7 +24,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigateToTutorial: () -> Unit = {}) {
     val context = LocalContext.current
 
     Scaffold(
@@ -46,6 +46,25 @@ fun SettingsScreen() {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Tutorial
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("使用教程", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("快速了解答题卡制作、校准和扫描批改的完整流程。",
+                        style = MaterialTheme.typography.bodySmall, color = Gray500)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onNavigateToTutorial) {
+                        Icon(Icons.Filled.PlayArrow, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("查看教程")
+                    }
+                }
+            }
+
             // Export logs
             Card(
                 shape = RoundedCornerShape(12.dp),
