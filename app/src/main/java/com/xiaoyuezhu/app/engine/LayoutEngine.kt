@@ -18,7 +18,7 @@ class LayoutEngine {
 
         // 90px diameter (0.75× from 120px)
         const val CIRCLE_R = 45f; const val CIRCLE_D = 90f
-        const val OPT_GAP = 18f; const val Q_GAP = 105f
+        const val OPT_GAP = 18f; const val Q_GAP = 72f
         const val MAX_PER_ROW = 3   // try to fit 3, fall back to 2 or 1
         const val ROW_H = 165f
 
@@ -45,8 +45,8 @@ class LayoutEngine {
         }
 
         // ── Answer section: adaptive per-row filling ──
-        val idRightEdge = idColCX + (spec.studentIdDigits - 1) * (CIRCLE_D + ID_COL_GAP) + CIRCLE_R + 38f
-        val ansAvailW = CANVAS_WIDTH - idRightEdge - 30f
+        val idRightEdge = idColCX + (spec.studentIdDigits - 1) * (CIRCLE_D + ID_COL_GAP) + CIRCLE_R + 24f
+        val ansAvailW = CANVAS_WIDTH - idRightEdge - 20f
         val ansStep = CIRCLE_D + OPT_GAP
         val ansStartY = top + CIRCLE_R + 15f
         val labels = ('A'..'Z').toList()
