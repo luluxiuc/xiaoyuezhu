@@ -1,6 +1,7 @@
 package com.xiaoyuezhu.app.scanner
 
 import com.xiaoyuezhu.app.domain.model.*
+import com.xiaoyuezhu.app.engine.LayoutEngine
 import org.opencv.core.Mat
 import timber.log.Timber
 
@@ -22,29 +23,28 @@ object CalibrationProcessor {
      * Run full calibration on a warped calibration sheet.
      *
      * @param warped grayscale Mat, already perspective-corrected
-     * @param optionCount e.g., 4 for A/B/C/D
+     * @param optionCounts per-question option counts (for splitting rows into questions)
      * @param studentIdDigits number of ID columns (typically 2)
      * @param expectedQuestions total number of questions defined in the template
-     * @param questionsPerRow questions per visual row (from LayoutEngine, default 2)
      * @param warpWidth width of the warped image (stored for scan consistency)
      * @param warpHeight height of the warped image
      * @return CalibrationOutput with MasterTemplate and detected correct answers, or null on failure
      */
     fun calibrate(
         warped: Mat,
-        optionCount: Int,
+        optionCounts: List<Int>,
         studentIdDigits: Int,
         expectedQuestions: Int,
-        questionsPerRow: Int = 2,
         warpWidth: Int,
         warpHeight: Int
     ): CalibrationOutput? {
         Timber.i("CalibrationProcessor: 开始校准 ${warpWidth}x${warpHeight}")
 
         // Step 1: Discover all bubble positions
+        val maxOptCount = optionCounts.maxOrNull() ?: 4
         val layout = BubbleDetector.discover(
-            warped, optionCount, studentIdDigits,
-            expectedQuestions, questionsPerRow
+            warped, maxOptCount, studentIdDigits,
+            expectedQuestions, LayoutEngine.MAX_PER_ROW
         )
         if (layout == null) {
             Timber.e("校准失败: BubbleDetector 未能发现气泡位置")
@@ -55,16 +55,8 @@ object CalibrationProcessor {
 
         // Step 2: Measure fill levels using FillAnalyzer
         val allRows = mutableListOf<List<CirclePos>>()
-
-        // ID columns are treated as separate row-groups for per-column threshold
-        for (col in layout.idColumns) {
-            allRows.add(col)
-        }
-
-        // Answer rows
-        for (row in layout.questionRows) {
-            allRows.add(row)
-        }
+        for (col in layout.idColumns) { allRows.add(col) }
+        for (row in layout.questionRows) { allRows.add(row) }
 
         val fillResult = FillAnalyzer.analyze(warped, allRows)
 
@@ -81,42 +73,35 @@ object CalibrationProcessor {
             rowIdx++
         }
 
-        // Step 4: Build questions with correct option detection
+        // Step 4: Build questions — split each row using sequential per-question option counts
         val questions = mutableListOf<QuestionMaster>()
-        val optionLabels = ('A'..'Z').take(optionCount).map { it.toString() }
+        val optionLabels = ('A'..'Z').map { it.toString() }
+        var questionIndex = 0
 
         for (qrIdx in layout.questionRows.indices) {
             if (rowIdx >= fillResult.rows.size) break
             val rowFill = fillResult.rows[rowIdx]
             val bubbles = rowFill.bubbles
 
-            // Split row's bubbles into individual questions
-            // Each row has questionsPerRow * optionCount bubbles
-            val perQuestion = optionCount
-            for (qi in 0 until questionsPerRow) {
-                val start = qi * perQuestion
-                val end = start + perQuestion
-                if (start >= bubbles.size) break
-                val qBubbles = bubbles.subList(start, end.coerceAtMost(bubbles.size))
+            // Split this row's bubbles into questions by consuming per-question option counts
+            var bubbleOffset = 0
+            while (bubbleOffset < bubbles.size && questionIndex < expectedQuestions) {
+                val oc = optionCounts.getOrElse(questionIndex) { 4 }
+                val end = (bubbleOffset + oc).coerceAtMost(bubbles.size)
+                if (end - bubbleOffset < 2) break  // not enough bubbles for a question
 
+                val qBubbles = bubbles.subList(bubbleOffset, end)
                 val options = qBubbles.map { bf ->
                     CirclePos(bf.cx, bf.cy, bf.r, intensity = bf.meanIntensity)
                 }
 
-                // Collect ALL filled options — multi-select if teacher filled multiple
                 val filledIndices = qBubbles.indices.filter { qBubbles[it].isFilled }
-                val correctOptions = if (filledIndices.isNotEmpty()) {
-                    filledIndices
-                } else {
-                    // If none clearly filled, pick the darkest as fallback
-                    val darkest = qBubbles.indices.maxByOrNull { qBubbles[it].meanIntensity } ?: 0
-                    listOf(darkest)
-                }
+                val correctOptions = if (filledIndices.isNotEmpty()) filledIndices
+                else { listOf(qBubbles.indices.maxByOrNull { qBubbles[it].meanIntensity } ?: 0) }
 
-                val qIndex = qrIdx * questionsPerRow + qi
-                if (qIndex < expectedQuestions) {
-                    questions.add(QuestionMaster(qIndex, options, correctOptions))
-                }
+                questions.add(QuestionMaster(questionIndex, options, correctOptions))
+                bubbleOffset = end
+                questionIndex++
             }
             rowIdx++
         }

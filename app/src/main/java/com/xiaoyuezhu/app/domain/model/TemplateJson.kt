@@ -12,7 +12,7 @@ data class TemplateJson(
     val optionCounts: List<Int> = emptyList(), // per-question option counts
     val studentIdDigits: Int = 2,
     val idDigitCount: Int = 10,
-    val questionsPerRow: Int = 4,
+    val questionsPerRow: Int = 3,
     // Approximate positions for bin-based reading
     val idColumns: List<IdColumnRef> = emptyList(),
     val questionRects: List<QuestionRectRef> = emptyList(),
