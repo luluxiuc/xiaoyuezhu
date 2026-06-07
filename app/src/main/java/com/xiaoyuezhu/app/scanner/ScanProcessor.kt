@@ -147,10 +147,9 @@ class ScanProcessor @Inject constructor() {
             // Auto-discover bubbles + analyze fills → MasterTemplate
             val calOutput = CalibrationProcessor.calibrate(
                 warped = warped,
-                optionCount = t.optionCount,
+                optionCounts = t.optionCounts.ifEmpty { List(t.questionCount) { t.optionCount } },
                 studentIdDigits = t.studentIdDigits,
                 expectedQuestions = t.questionCount,
-                questionsPerRow = t.questionsPerRow,
                 warpWidth = warpResult.dstWidth,
                 warpHeight = warpResult.dstHeight
             )

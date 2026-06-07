@@ -254,10 +254,10 @@ object BubbleDetector {
         val answerRows = groupIntoRows(allAnswerCenters, 30.0)
         Timber.d("  答案行(Y容差=30): ${answerRows.size}行 → ${answerRows.map { it.size }.joinToString(",")}")
 
-        // Filter: keep rows with roughly the expected number of circles per row
-        val expectedPerRow = optionCount * questionsPerRow
+        // Filter: keep rows with enough circles for at least 1 question (adaptive layout)
+        val minPerRow = maxOf(optionCount, 4)
         val validRows = answerRows
-            .filter { it.size in (expectedPerRow - 3)..(expectedPerRow + 3) }
+            .filter { it.size >= minPerRow }
             .map { row ->
                 row.sortedBy { it.x }.map { CirclePos(it.x.toFloat(), it.y.toFloat()) }
             }

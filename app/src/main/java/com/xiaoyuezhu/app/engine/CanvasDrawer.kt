@@ -69,9 +69,7 @@ class CanvasDrawer {
                 }
                 // Draw question numbers using per-question option counts
                 var bubbleIdx = 0
-                for (q in 0 until LayoutEngine.Q_PER_ROW) {
-                    val qi = row.index * LayoutEngine.Q_PER_ROW + q
-                    if (qi >= spec.questionCount) break
+                for (qi in row.questionIndices) {
                     val oc = spec.optionCounts.getOrElse(qi) { 4 }
                     if (bubbleIdx < row.bubbles.size) {
                         val firstBubble = row.bubbles[bubbleIdx]
@@ -102,9 +100,7 @@ class CanvasDrawer {
         for (row in layout.rows) {
             if (row.isIdRow) continue
             var bubbleIdx = 0
-            for (q in 0 until LayoutEngine.Q_PER_ROW) {
-                val qi = row.index * LayoutEngine.Q_PER_ROW + q
-                if (qi >= spec.questionCount) break
+            for (qi in row.questionIndices) {
                 val oc = spec.optionCounts.getOrElse(qi) { 4 }
                 if (bubbleIdx + oc <= row.bubbles.size) {
                     val group = row.bubbles.subList(bubbleIdx, bubbleIdx + oc)
@@ -125,7 +121,7 @@ class CanvasDrawer {
             questionCount = spec.questionCount, optionCount = spec.optionCounts.firstOrNull() ?: 4,
             optionCounts = spec.optionCounts,
             studentIdDigits = spec.studentIdDigits, idDigitCount = 10,
-            questionsPerRow = LayoutEngine.Q_PER_ROW,
+            questionsPerRow = LayoutEngine.MAX_PER_ROW,
             idColumns = idCols, questionRects = qRects,
             questionScores = spec.questionScores
         )
