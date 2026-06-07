@@ -109,10 +109,11 @@ fun PaperEditorScreen(
             item {
                 OutlinedTextField(
                     value = state.title,
-                    onValueChange = { viewModel.updateTitle(it) },
+                    onValueChange = { if (it.length <= 15) viewModel.updateTitle(it) },
                     label = { Text("答题卡名称") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    supportingText = { Text("${state.title.length}/15") }
                 )
             }
 

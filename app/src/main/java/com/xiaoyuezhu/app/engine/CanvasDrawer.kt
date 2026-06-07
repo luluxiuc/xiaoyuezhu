@@ -12,21 +12,19 @@ class CanvasDrawer {
         color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 6f; isAntiAlias = true
     }
     private val labelPaint = Paint().apply {
-        color = Color.BLACK; textSize = 20f; isAntiAlias = true
+        color = Color.BLACK; textSize = 28f; isAntiAlias = true
         textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
     }
     private val digitPaint = Paint().apply {
-        color = Color.BLACK; textSize = 16f; isAntiAlias = true; textAlign = Paint.Align.CENTER
+        color = Color.BLACK; textSize = 22f; isAntiAlias = true; textAlign = Paint.Align.CENTER
     }
     private val titlePaint = Paint().apply {
-        color = Color.BLACK; textSize = 32f; isAntiAlias = true
+        color = Color.BLACK; textSize = 48f; isAntiAlias = true
         textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
     }
     private val qNumPaint = Paint().apply {
-        color = Color.BLACK; textSize = 18f; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
-    }
-    private val hintPaint = Paint().apply {
-        color = Color.parseColor("#BBBBBB"); textSize = 11f; isAntiAlias = true; textAlign = Paint.Align.CENTER
+        color = Color.BLACK; textSize = 24f; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
+        textAlign = Paint.Align.CENTER
     }
 
     fun draw(layout: LayoutResult, spec: PaperSpec): Pair<Bitmap, TemplateJson> {
@@ -41,31 +39,23 @@ class CanvasDrawer {
             w - LayoutEngine.BORDER_INSET, h - LayoutEngine.BORDER_INSET, borderPaint)
 
         // Title
-        c.drawText("答 题 卡", w / 2f, 44f, titlePaint)
+        c.drawText(spec.title, w / 2f, 58f, titlePaint)
 
         for (row in layout.rows) {
             if (row.isIdRow) {
                 // ID section: vertical columns, same circles as answers
                 c.drawText("学号", 34f, row.bubbles.first().cy - 36f,
-                    Paint(titlePaint).apply { textSize = 20f; textAlign = Paint.Align.LEFT })
+                    Paint(titlePaint).apply { textSize = 24f; textAlign = Paint.Align.LEFT })
                 for (b in row.bubbles) {
                     c.drawCircle(b.cx, b.cy, LayoutEngine.CIRCLE_R, circlePaint)
                     val fm = digitPaint.fontMetrics
                     c.drawText(b.label, b.cx, b.cy - (fm.ascent + fm.descent) / 2f, digitPaint)
                 }
-                if (spec.studentIdDigits >= 2) {
-                    val cols = row.bubbles.groupBy { it.cx }
-                    val xs = cols.keys.sorted()
-                    if (xs.size >= 2) {
-                        c.drawText("十位", xs[0], row.bubbles.last().cy + 18f, hintPaint)
-                        c.drawText("个位", xs[1], row.bubbles.last().cy + 18f, hintPaint)
-                    }
-                }
             } else {
                 // Answer row — draw each bubble with its label
                 for (b in row.bubbles) {
                     c.drawCircle(b.cx, b.cy, LayoutEngine.CIRCLE_R, circlePaint)
-                    c.drawText(b.label, b.cx, b.cy + LayoutEngine.CIRCLE_R + 18f, labelPaint)
+                    c.drawText(b.label, b.cx, b.cy + LayoutEngine.CIRCLE_R + 22f, labelPaint)
                 }
                 // Draw question numbers using per-question option counts
                 var bubbleIdx = 0
@@ -73,7 +63,7 @@ class CanvasDrawer {
                     val oc = spec.optionCounts.getOrElse(qi) { 4 }
                     if (bubbleIdx < row.bubbles.size) {
                         val firstBubble = row.bubbles[bubbleIdx]
-                        c.drawText("${qi + 1}.", firstBubble.cx - LayoutEngine.CIRCLE_R - 15f,
+                        c.drawText("${qi + 1}.", firstBubble.cx - LayoutEngine.CIRCLE_R - 38f,
                             firstBubble.cy + 7f, qNumPaint)
                         bubbleIdx += oc
                     }

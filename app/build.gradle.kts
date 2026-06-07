@@ -14,8 +14,8 @@ android {
         applicationId = "com.xiaoyuezhu.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "5.0.0"
+        versionCode = 17
+        versionName = "5.0.1"
     }
 
     signingConfigs {
